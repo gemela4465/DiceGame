@@ -1,0 +1,6 @@
+{
+  "name": "玩具輪流玩 - 骰子排名爭端解決器",
+  "description": "解決小朋友玩具爭吵的骰子比大小排名與輪流遊玩倒數計時器",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
