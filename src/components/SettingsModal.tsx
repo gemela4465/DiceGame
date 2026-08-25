@@ -269,36 +269,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* 7. 投骰順序 (個人骰 vs 統一骰) */}
+          {/* 7. 投骰順序 (多人同時自由骰 vs 統一一鍵骰 vs 依序輪流骰) */}
           <div className="bg-[#FFFCE8] p-4 rounded-2xl border-3 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
             <div className="flex items-center gap-2 font-black text-[#2D2D2D] mb-3">
               <UserCheck className="w-5 h-5 text-black" />
-              <span>擲骰模式 (只能有一種模式)</span>
+              <span>擲骰模式</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button
                 type="button"
-                onClick={() => onUpdateSettings({ rollExecutionMode: 'individual' })}
-                className={`p-3.5 rounded-xl font-black text-sm flex flex-col items-center gap-1 border-3 border-black transition-all ${
-                  settings.rollExecutionMode === 'individual'
+                onClick={() => onUpdateSettings({ rollExecutionMode: 'concurrent' })}
+                className={`p-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center gap-1 border-3 border-black transition-all ${
+                  settings.rollExecutionMode === 'concurrent' || (settings.rollExecutionMode as string) === 'individual'
                     ? 'bg-[#4ECDC4] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ring-2 ring-black'
                     : 'bg-white text-[#2D2D2D] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#FFF8D6]'
                 }`}
               >
-                <span className="text-base font-black">👤 個人骰模式</span>
-                <span className="text-xs font-bold text-[#2D2D2D]/70">每位小朋友依序親自擲骰子</span>
+                <span className="text-sm sm:text-base font-black">👥 多人自由同時投</span>
+                <span className="text-[11px] font-bold text-[#2D2D2D]/80">大家隨時按自己按鈕，可多人多點觸控同時搖骰！</span>
               </button>
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ rollExecutionMode: 'simultaneous' })}
-                className={`p-3.5 rounded-xl font-black text-sm flex flex-col items-center gap-1 border-3 border-black transition-all ${
+                className={`p-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center gap-1 border-3 border-black transition-all ${
                   settings.rollExecutionMode === 'simultaneous'
                     ? 'bg-[#4ECDC4] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ring-2 ring-black'
                     : 'bg-white text-[#2D2D2D] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#FFF8D6]'
                 }`}
               >
-                <span className="text-base font-black">⚡ 統一骰模式</span>
-                <span className="text-xs font-bold text-[#2D2D2D]/70">大家同時骰動或一鍵全部開骰</span>
+                <span className="text-sm sm:text-base font-black">⚡ 全員一鍵統一骰</span>
+                <span className="text-[11px] font-bold text-[#2D2D2D]/80">由上方主按鈕一鍵全體同時骰動開獎</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ rollExecutionMode: 'sequential' })}
+                className={`p-3 rounded-xl font-black text-xs sm:text-sm flex flex-col items-center gap-1 border-3 border-black transition-all ${
+                  settings.rollExecutionMode === 'sequential'
+                    ? 'bg-[#4ECDC4] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ring-2 ring-black'
+                    : 'bg-white text-[#2D2D2D] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-[#FFF8D6]'
+                }`}
+              >
+                <span className="text-sm sm:text-base font-black">🚶 依序輪流投骰</span>
+                <span className="text-[11px] font-bold text-[#2D2D2D]/80">按照座位順序，一位投完才輪到下一位</span>
               </button>
             </div>
           </div>

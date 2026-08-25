@@ -19,6 +19,7 @@ interface RankingBoardProps {
   onRematch: () => void;
   onNextRound: () => void;
   tournamentWinner: Player | null;
+  onBackToDice?: () => void;
 }
 
 export const RankingBoard: React.FC<RankingBoardProps> = ({
@@ -28,6 +29,7 @@ export const RankingBoard: React.FC<RankingBoardProps> = ({
   onRematch,
   onNextRound,
   tournamentWinner,
+  onBackToDice,
 }) => {
   // Sort players by rank
   const sortedPlayers = [...players].sort((a, b) => a.rank - b.rank);
@@ -35,7 +37,16 @@ export const RankingBoard: React.FC<RankingBoardProps> = ({
   return (
     <div className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] border-4 border-black space-y-6">
       {/* Header Banner */}
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-2 relative">
+        {onBackToDice && (
+          <button
+            type="button"
+            onClick={onBackToDice}
+            className="absolute left-0 top-0 px-3 py-1.5 bg-white hover:bg-[#FFF8D6] text-[#2D2D2D] font-black text-xs rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center gap-1"
+          >
+            ← 返回看骰子
+          </button>
+        )}
         <div className="inline-flex items-center gap-2 bg-[#FFDE59] text-black px-4 py-1.5 rounded-full text-xs font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
           <Trophy className="w-4 h-4 text-black" />
           <span>本局投骰排名榜</span>

@@ -75,7 +75,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   layoutMode: 'horizontal',
   matchFormat: 'bo1',
   rollTriggerMode: 'click_toggle',
-  rollExecutionMode: 'individual',
+  rollExecutionMode: 'concurrent',
   timerDuration: 30,
 };
 
@@ -97,11 +97,15 @@ export default function App() {
   const [isSimultaneousRolling, setIsSimultaneousRolling] = useState(false);
   const simultaneousTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Guard to ensure round completion calculation and confetti fire strictly ONCE per round
+  const roundEvaluatedRef = useRef(false);
+
   // Sound rolling interval
   const rollAudioIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize player dice arrays whenever diceCount changes
   useEffect(() => {
+    roundEvaluatedRef.current = false;
     setPlayers((prev) =>
       prev.map((p) => ({
         ...p,
@@ -115,6 +119,7 @@ export default function App() {
   const handleUpdatePlayerCount = (newCount: number) => {
     const clampedCount = Math.max(1, Math.min(8, newCount));
     soundEffects.playClick();
+    roundEvaluatedRef.current = false;
 
     setSettings((prev) => ({ ...prev, playerCount: clampedCount }));
 
@@ -173,11 +178,30 @@ export default function App() {
     };
   }, [players, isSimultaneousRolling]);
 
-  // Check when all players finished rolling to compute rankings
+  // Lightweight, smooth confetti celebration trigger (runs smoothly without freezing)
+  const triggerCelebrationConfetti = () => {
+    try {
+      confetti({
+        particleCount: 65,
+        spread: 70,
+        origin: { y: 0.6 },
+        ticks: 160,
+        gravity: 1.1,
+        scalar: 0.95,
+        colors: ['#FF6B6B', '#4ECDC4', '#FFDE59', '#3B82F6', '#EC4899', '#A78BFA'],
+        disableForReducedMotion: true,
+      });
+    } catch {
+      // ignore if unsupported
+    }
+  };
+
+  // Check when all players finished rolling to compute rankings ONCE
   useEffect(() => {
     if (gamePhase === 'rolling') {
-      const allRolled = players.every((p) => p.hasRolled);
-      if (allRolled && players.length > 0) {
+      const allRolled = players.length > 0 && players.every((p) => p.hasRolled && !p.isRolling);
+      if (allRolled && !roundEvaluatedRef.current) {
+        roundEvaluatedRef.current = true;
         evaluateRoundRanks(players);
       }
     }
@@ -196,7 +220,6 @@ export default function App() {
 
     if (settings.tieMode === 'allow_tie') {
       // Allow ties: assign standard fractional/competition rank
-      let currentRank = 1;
       const rankedList: Player[] = [];
 
       for (let i = 0; i < sorted.length; i++) {
@@ -213,14 +236,6 @@ export default function App() {
           });
         }
       }
-
-      // Update state with ranks
-      setPlayers((prev) =>
-        prev.map((p) => {
-          const match = rankedList.find((r) => r.id === p.id);
-          return match ? { ...p, rank: match.rank } : p;
-        })
-      );
 
       handleRoundCompleted(rankedList);
     } else {
@@ -241,12 +256,6 @@ export default function App() {
       } else {
         // No ties, ranks are 1 to N
         const rankedList = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
-        setPlayers((prev) =>
-          prev.map((p) => {
-            const match = rankedList.find((r) => r.id === p.id);
-            return match ? { ...p, rank: match.rank } : p;
-          })
-        );
         handleRoundCompleted(rankedList);
       }
     }
@@ -274,59 +283,40 @@ export default function App() {
     });
 
     const rankedList = sorted.map((p, idx) => ({ ...p, rank: idx + 1 }));
-    setPlayers((prev) =>
-      prev.map((p) => {
-        const match = rankedList.find((r) => r.id === p.id);
-        return match ? { ...p, rank: match.rank } : p;
-      })
-    );
-
     handleRoundCompleted(rankedList);
   };
 
-  // Round completed processing (check BO3/BO5 tournament match points)
+  // Round completed processing (play fanfare + confetti ONCE, compute points)
   const handleRoundCompleted = (rankedList: Player[]) => {
     soundEffects.playFanfare();
-    try {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
+    triggerCelebrationConfetti();
+
+    // Single unified state update with rank and tournament match wins
+    setPlayers((prev) => {
+      const updated = prev.map((p) => {
+        const match = rankedList.find((r) => r.id === p.id);
+        const isWinner = match?.rank === 1;
+        return {
+          ...p,
+          rank: match?.rank || p.rank,
+          roundWins: isWinner ? p.roundWins + 1 : p.roundWins,
+        };
       });
-    } catch {
-      // ignore
-    }
 
-    const roundWinner = rankedList[0];
-    if (!roundWinner) return;
+      const neededWins = settings.matchFormat === 'bo3' ? 2 : settings.matchFormat === 'bo5' ? 3 : 1;
+      const champion = updated.find((p) => p.roundWins >= neededWins);
+      if (champion && settings.matchFormat !== 'bo1') {
+        setTournamentWinner(champion);
+      }
 
-    // Check tournament format
-    const updatedPlayers = players.map((p) => {
-      const match = rankedList.find((r) => r.id === p.id);
-      const isWinner = match?.rank === 1;
-      return {
-        ...p,
-        rank: match?.rank || p.rank,
-        roundWins: isWinner ? p.roundWins + 1 : p.roundWins,
-      };
+      return updated;
     });
-
-    setPlayers(updatedPlayers);
-
-    const neededWins = settings.matchFormat === 'bo3' ? 2 : settings.matchFormat === 'bo5' ? 3 : 1;
-    const champion = updatedPlayers.find((p) => p.roundWins >= neededWins);
-
-    if (champion && settings.matchFormat !== 'bo1') {
-      setTournamentWinner(champion);
-      setGamePhase('match_result');
-    } else {
-      setGamePhase('round_result');
-    }
   };
 
   // Single player rolling handlers
   const handleStartRoll = (playerIndex: number) => {
     soundEffects.playDiceShake();
+    roundEvaluatedRef.current = false;
     setPlayers((prev) =>
       prev.map((p, idx) => (idx === playerIndex ? { ...p, isRolling: true } : p))
     );
@@ -354,51 +344,63 @@ export default function App() {
       )
     );
 
-    // Advance active player in individual mode
-    if (settings.rollExecutionMode === 'individual') {
+    // Advance active player in sequential mode
+    if (settings.rollExecutionMode === 'sequential') {
       if (playerIndex < players.length - 1) {
         setActivePlayerIndex(playerIndex + 1);
       }
     }
   };
 
-  // Simultaneous / Master roll (rolls all unrolled players at once)
-  const handleSimultaneousRollAll = () => {
+  // Simultaneous / Master roll triggers (supports both press_hold and click_toggle)
+  const handleStartSimultaneousRoll = () => {
     if (isSimultaneousRolling) return;
     setIsSimultaneousRolling(true);
+    roundEvaluatedRef.current = false;
     soundEffects.playDiceShake();
 
     // Start shaking all unrolled players
     setPlayers((prev) =>
-      prev.map((p) => ({ ...p, isRolling: true }))
+      prev.map((p) => (p.hasRolled ? p : { ...p, isRolling: true }))
     );
+  };
 
-    // Roll for 1.2 seconds then stop with impact sound
+  const handleStopSimultaneousRoll = () => {
+    if (!isSimultaneousRolling) return;
+    soundEffects.playDiceLand();
+
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.hasRolled) return p;
+        const rolledDice = Array.from({ length: settings.diceCount }, () =>
+          Math.floor(Math.random() * 6) + 1
+        );
+        const sum = rolledDice.reduce((acc, val) => acc + val, 0);
+        return {
+          ...p,
+          isRolling: false,
+          hasRolled: true,
+          dice: rolledDice,
+          totalScore: sum,
+        };
+      })
+    );
+    setIsSimultaneousRolling(false);
+  };
+
+  // Fallback single-trigger auto simultaneous roll
+  const handleSimultaneousRollAll = () => {
+    if (isSimultaneousRolling) return;
+    handleStartSimultaneousRoll();
     simultaneousTimerRef.current = setTimeout(() => {
-      soundEffects.playDiceLand();
-
-      setPlayers((prev) =>
-        prev.map((p) => {
-          const rolledDice = Array.from({ length: settings.diceCount }, () =>
-            Math.floor(Math.random() * 6) + 1
-          );
-          const sum = rolledDice.reduce((acc, val) => acc + val, 0);
-          return {
-            ...p,
-            isRolling: false,
-            hasRolled: true,
-            dice: rolledDice,
-            totalScore: sum,
-          };
-        })
-      );
-      setIsSimultaneousRolling(false);
+      handleStopSimultaneousRoll();
     }, 1200);
   };
 
   // Next round in BO3/BO5
   const handleNextRound = () => {
     soundEffects.playClick();
+    roundEvaluatedRef.current = false;
     setCurrentRound((prev) => prev + 1);
     setPlayers((prev) =>
       prev.map((p) => ({
@@ -416,6 +418,7 @@ export default function App() {
   // Full rematch reset (requirement 12: 重賽後該排名就清除)
   const handleRematch = () => {
     soundEffects.playClick();
+    roundEvaluatedRef.current = false;
     setCurrentRound(1);
     setTournamentWinner(null);
     setPlayers((prev) =>
@@ -449,10 +452,10 @@ export default function App() {
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h1 className="font-black text-base sm:text-xl text-[#2D2D2D] tracking-tight">
-                  玩具輪流玩
+                  玩具輪玩
                 </h1>
-                <span className="bg-[#4ECDC4] text-black text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-lg border-2 border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                  爭端解決器
+                <span className="bg-[#4ECDC4] text-black text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-lg border-2 border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                  投骰子比賽
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-[#2D2D2D]/80 font-bold hidden md:block">
@@ -589,6 +592,7 @@ export default function App() {
             onRematch={handleRematch}
             onNextRound={handleNextRound}
             tournamentWinner={tournamentWinner}
+            onBackToDice={() => setGamePhase('rolling')}
           />
         ) : (
           /* Mode: Active Dice Rolling Phase */
@@ -656,11 +660,14 @@ export default function App() {
                 activePlayerIndex={activePlayerIndex}
                 onStartRoll={handleStartRoll}
                 onStopRoll={handleStopRoll}
+                onStartSimultaneousRoll={handleStartSimultaneousRoll}
+                onStopSimultaneousRoll={handleStopSimultaneousRoll}
                 onSimultaneousRollAll={handleSimultaneousRollAll}
                 isSimultaneousRolling={isSimultaneousRolling}
                 onEditPlayer={(p) => setEditingPlayer(p)}
                 isAllRolled={isAllRolled}
                 onProceedToTimer={() => setGamePhase('play_timer')}
+                onProceedToRanking={() => setGamePhase('round_result')}
                 onRematch={handleRematch}
               />
             ) : (
@@ -670,9 +677,15 @@ export default function App() {
                 activePlayerIndex={activePlayerIndex}
                 onStartRoll={handleStartRoll}
                 onStopRoll={handleStopRoll}
+                onStartSimultaneousRoll={handleStartSimultaneousRoll}
+                onStopSimultaneousRoll={handleStopSimultaneousRoll}
+                onSimultaneousRollAll={handleSimultaneousRollAll}
+                isSimultaneousRolling={isSimultaneousRolling}
                 onEditPlayer={(p) => setEditingPlayer(p)}
                 isAllRolled={isAllRolled}
                 onProceedToTimer={() => setGamePhase('play_timer')}
+                onProceedToRanking={() => setGamePhase('round_result')}
+                onRematch={handleRematch}
               />
             )}
           </div>

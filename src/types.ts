@@ -3,7 +3,7 @@ export type TieMode = 'allow_tie' | 'tie_breaker';
 export type LayoutMode = 'horizontal' | 'oval';
 export type MatchFormat = 'bo1' | 'bo3' | 'bo5';
 export type RollTriggerMode = 'click_toggle' | 'press_hold';
-export type RollExecutionMode = 'individual' | 'simultaneous';
+export type RollExecutionMode = 'concurrent' | 'sequential' | 'simultaneous';
 
 export interface Player {
   id: string;
